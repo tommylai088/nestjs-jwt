@@ -2,7 +2,10 @@ import { BadRequestException, Injectable, NotAcceptableException } from '@nestjs
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { CreateUserDto } from 'src/dto/create-user.dto';
+import { UserDto } from 'src/dto/user.dto';
 
+const EXPIRE_TIME = 3600 * 1000 // 1 hour refresh token.
 @Injectable()
 export class AuthService {
   constructor(
@@ -12,28 +15,41 @@ export class AuthService {
 
   async validateUser(username: string, password: string): Promise<any> {
     const user = await this.usersService.getUser(username);
-    const passwordValid = await bcrypt.compare(password, user.password)
     if (!user) {
-      throw new NotAcceptableException('could not find the user');
+      return null;
     }
-    if (user && passwordValid) {
-      return {
-        userId: user.id,
-        userName: user.username
-      };
+    const passwordValid = await bcrypt.compare(password, user?.password)
+    if (!passwordValid) {
+      return null;
     }
-    return null;
+    return user;
   }
 
-  async login(user: any) {
-    console.log(user);
-    const payload = { username: user.username, sub: user.userId };
+  async login(user: UserDto) {
+    const payload = {
+      username: user.username,
+      userId: user.id,
+      sub: user.id,
+    };
     return {
-      access_token: this.jwtService.sign(payload),
+      user: {
+        userId: user.id,
+        username: user.username,
+      },
+      accessToken: await this.jwtService.signAsync(payload, {
+        expiresIn: '1h',
+        secret: process.env.jwtSecretKey,
+      }),
+      refreshToken: await this.jwtService.signAsync(payload, {
+        expiresIn: '30d',
+        secret: process.env.jwtRefreshTokenKey,
+      }),
+      expiresIn: new Date().setTime(new Date().getTime() + EXPIRE_TIME),
     };
   }
 
-  async signup(user: any) {
+
+  async signup(user: CreateUserDto) {
     const { username, password, email } = user;
     if (!username) {
       throw new BadRequestException('username can not be null or empty');
@@ -62,63 +78,30 @@ export class AuthService {
     // TODO send email
     return {
       msg: 'User successfully registered',
-      userId: result.id,
-      userName: result.username
+      userId: result?._id,
+      userName: result?.username,
+      email: result?.email
     };
   }
 
-  async activate(token: string) {
-    if (!token) {
-      throw new BadRequestException('missing token');
-    }
-    const user = await this.usersService.getUserByToken(token);
-    if (!user) {
-      throw new BadRequestException('token is not valid');
-    }
-    if(user.activated === 1) {
-      throw new BadRequestException('user is already active');
-    }
-
-    const updatedUser = await this.usersService.updateUser(
-      {
-        token
-      },
-      {
-        token: null,
-        activated: 1
-      }
-    );
+  async refreshToken(user: any) {
+    const payload = {
+      username: user.username,
+      userId: user.userId,
+      sub: user.userId,
+    };
 
     return {
-      msg: 'User successfully activated',
-      userId: updatedUser.id,
-      userName: updatedUser.username
+      accessToken: await this.jwtService.signAsync(payload, {
+        expiresIn: '1h',
+        secret: process.env.jwtSecretKey,
+      }),
+      refreshToken: await this.jwtService.signAsync(payload, {
+        expiresIn: '30d',
+        secret: process.env.jwtRefreshTokenKey,
+      }),
+      expiresIn: new Date().setTime(new Date().getTime() + EXPIRE_TIME),
     };
   }
 
-  async resetPassword(token: string, ) {
-    // if(!token) {
-    //   throw new BadRequestException('missing token');
-    // }
-    // const user = await this.usersService.getUserByToken(token);
-    // if (!user) {
-    //   throw new BadRequestException('token is not valid');
-    // }
-    // if(user.activated == 0) {
-    //   throw new BadRequestException('user is not active');
-    // }
-   
-
-    // const updatedUser = await this.usersService.updateUser(
-    //   {
-    //     token
-    //   },
-    //   {
-    //     token: null,
-    //     activated: 1
-    //   }
-    // );
-    
-
-  }
 }
