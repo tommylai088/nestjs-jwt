@@ -3,17 +3,18 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
 import { jwtConstants } from '../constants';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class OptionalJwtStrategy extends PassportStrategy(Strategy, 'optional-jwt') {
-  constructor() {
+  constructor(private configService: ConfigService) {
     super({
       // Extract JWT from the Authorization header as a Bearer token
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       // Set ignoreExpiration to true to allow non-expired tokens
       ignoreExpiration: false,
       // Secret key to validate the JWT signature, read from environment variables
-      secretOrKey: jwtConstants.secret,
+      secretOrKey: configService.get<string>(jwtConstants.secret),
       // Pass the request to the validate function
       passReqToCallback: true,
     });

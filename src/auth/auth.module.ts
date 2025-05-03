@@ -9,14 +9,19 @@ import { LocalStrategy } from './strategies/local.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { OptionalJwtStrategy } from './strategies/optional-jwt.strategy';
 import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
     UsersModule,
     PassportModule,
-    JwtModule.register({
-      secret: jwtConstants.secret,
-      signOptions: { expiresIn: '60s' },
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (config: ConfigService) => ({
+        secret: config.get<string>(jwtConstants.secret),
+        signOptions: { expiresIn: '60s' },
+      }),
     }),
   ],
   providers: [
